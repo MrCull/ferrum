@@ -47,7 +47,7 @@ const {
  * as `Array.map` would do.
  * In practice the `x*2` would be calculated immediately before the result is printed.
  *
- * ```
+ * ```js,notest
  * const { each, map } = require('ferrum');
  * each(map([1,2,3], (x) => x*2), console.log);
  * ```
@@ -60,7 +60,7 @@ const {
  *
  * sequence.js functions also support passing functions as the last argument:
  *
- * ```
+ * ```js,notest
  * const { each } = require('ferrum');
  * each([1,2,3,4], (elm) => {
  *   // doSomething(elm);
@@ -72,7 +72,7 @@ const {
  * are using multiple nested each/map/fold calls and the function bodies
  * grow long!
  *
- * ```
+ * ```js,notest
  * const each = (fn, seq) => {
  *   for (const val of seq) fn(val);
  * };
@@ -102,36 +102,34 @@ const {
  *
  * # Replace With
  *
- * ```
+ * ```js,notest
  * const { each } = require('ferrum');
- * each([1,2,3,4], console.log);
- * // 1
- * // 2
- * // 3
- * // 4
+ * each({ foo: 42, bar: 23 }, console.log);
  * ```
  *
  * or
  *
  * ```
  * const { each } = require('ferrum');
- * each({foo: 42}, v => console.log(v));
- * // [ 'foo', 42 ]
+ * each({ foo: 42, bar: 23 }, v => console.log(v));
  * ```
  *
  * or the following if the full power of a for loop is really required..
  *
- * ```
+ * ```js,notest
  * const { each, iter } = require('ferrum');
- * for (const v of iter({foo: 42})) console.log(v);
- * // [ 'foo', 42 ]
+ * for (const v of iter({foo: 42})) {
+ *   console.log(v);
+ * }
  * ```
  *
  * # Array.forEach
  *
- * ```
+ * ```js,notest
  * const { each } = require('ferrum');
  * [1,2,3,4].forEach(console.log)
+ *
+ * // Outputs:
  * // 1 0 [ 1, 2, 3, 4 ]
  * // 2 1 [ 1, 2, 3, 4 ]
  * // 3 2 [ 1, 2, 3, 4 ]
@@ -145,7 +143,7 @@ const {
  *
  * ## Replace With
  *
- * ```
+ * ```js,notest
  * const { each } = require('ferrum');
  * each([1,2,3,4], console.log);
  * // 1
@@ -156,7 +154,7 @@ const {
  *
  * If the index is really needed, `enumerate()` may be used:
  *
- * ```
+ * ```js,notest
  * const { each, enumerate } = require('ferrum');
  * each(enumerate([42, 23]), console.log)
  * // [ 0, 42 ]
@@ -166,8 +164,6 @@ const {
  * As a sidenote this also effortlessly fits the concept of a key/value
  * container; the output of `enumerate([42, 23])` could easily passed
  * into `new Map(...)`;
- *
- * The full behaviour of for each
  */
 
 /**
@@ -178,15 +174,32 @@ const {
  *
  * Any value that is allowed as a parameter for this function shall be
  * considered to be a `Sequence` for the purpose of this file.
- * This term shall be distinguished from `Iterable` in that iterables
- * must implement the iterator protocol `iterable[Symbol.iterator]()`.
+ *
+ * This term shall be distinguished from Iterable in that Iterables
+ * must implement the iterator protocol `iterable[Symbol.iterator]()`
+ * while Sequences implement the Sequence trait. E.g. plain objects
+ * would be sequences but not Iterables.
+ *
+ * ```js
+ * const { iter, assertEquals } = require('ferrum');
+ *
+ * let it = iter({ foo: 42 });
+ * assertEquals(it.next(), { value: [ 'foo', 42 ], done: false });
+ * assertEquals(it.next(), { value: undefined, done: true });
+ *
+ * it = iter('asd');
+ * assertEquals(it.next(), { value: 'a', done: false });
+ * assertEquals(it.next(), { value: 's', done: false });
+ * assertEquals(it.next(), { value: 'd', done: false });
+ * assertEquals(it.next(), { value: undefined, done: true });
+ * ```
  *
  * # Version history
  *
  * - 1.2.0 Support for objects with Symbol keys.
  *
  * @function
- * @param {Object|Iterable|Iterator} obj
+ * @param {Sequence} obj
  * @returns {Iterator}
  * @yields The data from the given elements
  */
@@ -198,6 +211,39 @@ const iter = (v) => Sequence.invoke(v);
  * Uses the `Symbol.iterator` Symbol, so this is implemented for any
  * type that implements the iterator protocol.
  *
+ * You generally won't want to use this, implement the iterator protocol
+ * instead.
+ *
+ * ```js
+ * const { strictEqual: assertIs } = require('assert');
+ * const { Sequence, iter } = require('ferrum');
+ *
+ * // Sequence extends the iterator protocol; they use the same
+ * // symbols
+ * assertIs(Sequence.sym, Symbol.iterator)
+ *
+ * // Usually you want to implement the Sequence trait by implementing
+ * // the iterator protocol.
+ * class Foo {
+ *   [Symbol.iterator]() {
+ *     function gen*() {
+ *       yield 2;
+ *       yield 3;
+ *       yield 4;
+ *     }
+ *     return gen();
+ *   }
+ * };
+ *
+ * // You can use iter() as a shorthand for getting the iterator.
+ * // It is much less cumbersome than using mySeq[Symbol.iterator]().
+ * it = iter(new Foo());
+ * assertEquals(it.next(), { value: 2, done: false });
+ * assertEquals(it.next(), { value: 3, done: false });
+ * assertEquals(it.next(), { value: 4, done: false });
+ * assertEquals(it.next(), { value: undefined, done: true });
+ * ```
+ *
  * @interface
  */
 const Sequence = new Trait('Sequence', Symbol.iterator);
@@ -207,9 +253,30 @@ Sequence.impl(Object, pairs);
  * Generates an iterator with the numeric range [start; end[
  * Includes start but not end.
  *
+ * ```js
+ * const { range, extend, takeWhile, assertSequenceEquals } = require('ferrum');
+ *
+ * assertSequenceEquals(range(0, 4), [0, 1, 2, 3]);
+ * assertSequenceEquals(range(-6, -3), [-6, -5, -4]);
+ * assertSequenceEquals(range(0, 0), []);
+ *
+ * // You can even generate infinite sequences
+ * assertSequenceEquals(take(range(10, Infinity), 3), [10, 11, 12]);
+ *
+ * // Note that for more sophisticated ranges (custom step, not on numbers)
+ * // the following pattern (extend, takeWhile) can be used
+ * assertSequenceEquals(
+ *   // Range over all powers of two below 20
+ *   pipe(
+ *     2,                         // Start value
+ *     extend(mul(2)),            // Step function
+ *     takeWhile((v) => v < 20)), // Define the end condition
+ *   [2, 4, 8, 16]);
+ * ```
+ *
  * @function
  * @param {Number} start
- * @param {Number} end
+ * @param {Number} end Must be >= start
  * @returns {Iterator}
  */
 function* range(start, end) {
@@ -221,6 +288,16 @@ function* range(start, end) {
 /**
  * Like range(a, b) but always starts at 0
  *
+ * ```js
+ * const { range0, assertSequenceEquals } = require('ferrum');
+ *
+ * assertSequenceEquals(range0(4), [0, 1, 2, 3]);
+ * assertSequenceEquals(range0(0), []);
+ *
+ * // You can even generate infinite sequences
+ * assertSequenceEquals(take(range0(Infinity), 3), [0, 1, 2]);
+ * ```
+ *
  * @function
  * @param {Number} end
  * @returns {Iterator}
@@ -230,6 +307,21 @@ const range0 = (b) => range(0, b);
 /**
  * Generates an infinite iterator by invoking the
  * given function repeatedly.
+ *
+ * Note that this pretty much assumes that 
+ *
+ * ```js
+ * const { repeatFn, assertSequenceEquals } = require('ferrum');
+ *
+ * let i = 0;
+ * assertSequenceEquals(
+ *   take(repeatFn(() => i += 1), 4);
+ *   [1, 2, 3, 4]);
+ *
+ * // This is a much better example for it's usefulness, albeit it's
+ * // hard to test!
+ * const randomSeq = () => repeatFn(Math.random);
+ * ```
  *
  * @function
  * @param {Function} fn
@@ -243,6 +335,14 @@ function* repeatFn(fn) {
 
 /**
  * Generates an infinite iterator of the given value.
+ *
+ * ```js
+ * const { repeat, take, assertSequenceEquals } = require('ferrum');
+ *
+ * assertSequenceEquals(
+ *   take(repeat(true), 4),
+ *   [true, true, true, true]);
+ * ```
  *
  * @function
  * @template T
@@ -828,8 +928,24 @@ const list = (seq) => Array.from(iter(seq));
  * This often finds practical usage as a way of
  * removing duplicates elements from a sequence.
  *
+ * ```js
+ * const { uniq, assertEquals, assertSequenceEquals } = require('ferrum');
+ *
+ * // Removes duplicates
+ * assertEquals(
+ *   uniq([1, 1, 2, 1, 3, 4, 3]),
+ *   new Set([1, 2, 3, 4]));
+ *
+ * // Since this just creates a Set and Set outputs elements
+ * // in order of insertion, the order of elements output by
+ * // uniq() is well defined
+ * assertSequenceEquals(
+ *   uniq([4, 3, 3, 4, 1, 2, 1]),
+ *   [4, 3, 1, 2]);
+ * ```
+ *
  * @function
- * @param {Sequence} a The sequence to convert to a set.
+ * @param {Sequence} seq The sequence to convert to a set.
  * @returns {Set}
  */
 const uniq = (seq) => new Set(iter(seq));

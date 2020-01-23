@@ -101,26 +101,6 @@ it('enumerate()', () => {
   );
 });
 
-it('range(), range0()', () => {
-  const ck = (a, b, l) => ckEq(list(range(a, b)), list(l));
-  ck(0, 5, [0, 1, 2, 3, 4]);
-  ck(0, -1, []);
-  ck(0, 0, []);
-  ck(7, 9, [7, 8]);
-  ckEq(list(range0(4)), [0, 1, 2, 3]);
-});
-
-it('repeat()', () => {
-  ckEqSeq(tryTake(repeat(2), 4), [2, 2, 2, 2]);
-
-  let x = 0;
-  const fn = () => {
-    x += 1;
-    return x;
-  };
-  ckEqSeq(tryTake(repeatFn(fn), 4), [1, 2, 3, 4]);
-});
-
 it('extend(), extend1()', () => {
   ckEqSeq(tryTake(extend(mul(2))(3), 4), [3, 6, 12, 24]);
   ckEqSeq(tryTake(extend1(mul(-1))(1), 4), [-1, 1, -1, 1]);
